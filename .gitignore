@@ -1,0 +1,5 @@
+# Project exclude paths
+/.gradle/
+/vehicle-tracker/build/
+/vehicle-tracker/build/classes/java/main/
+/vehicle-tracker/build/classes/java/test/

@@ -1,0 +1,12 @@
+dependencies {
+    implementation "org.apache.kafka:kafka-clients:${rev_kafka_clients}"
+    implementation "org.slf4j:slf4j-api:${rev_slf4j}"
+    implementation"org.slf4j:slf4j-simple:${rev_slf4j}"
+    implementation "org.apache.commons:commons-lang3:${rev_commons_lang}"
+    implementation "com.google.guava:guava:${rev_guava}"
+    implementation "org.springframework:spring-beans:${rev_spring}"
+
+    testImplementation "org.springframework.kafka:spring-kafka-test:${rev_spring_kafka_test}"
+
+    implementation  "com.fasterxml.jackson.core:jackson-databind:2.9.8"
+}

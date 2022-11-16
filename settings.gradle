@@ -1,0 +1,8 @@
+rootProject.name = 'kafka-messaging-mentoring-2022'
+
+include 'tx-word-counter'
+include 'kafka-spring-example'
+include 'word-counter'
+include 'taxi-app'
+include 'vehicle-tracker'
+
