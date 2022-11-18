@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -51,10 +52,16 @@ public class DistanceCalculator {
         }
         LOGGER.info("submitting stats: " + dataToSend.distances());
         inTransaction(() -> dataToSend.distances().forEach(this::send), dataToSend.offsets());
-
-
     }
 
+    private void send(DistanceData distanceData) {
+        var record = new ProducerRecord<>(resultTopicName, distanceData.getVehicleId(), distanceData.getDistance());
+        try {
+            distanceMeasuresProducer.send(record).get();
+        } catch (Exception e) {
+            throw new KafkaOperationException("failed to send a record", e);
+        }
+    }
 
     private CoordinateData mapJsonToCoordinateDataObject(String json) {
         try {
@@ -66,14 +73,15 @@ public class DistanceCalculator {
     }
 
 
-    private ImmutablePair<Integer, Double> calculateDistance(CoordinateData currentCoordinateData) {
+
+    private   DistanceData calculateDistance(CoordinateData currentCoordinateData) {
         CoordinateData lastCoordinateData = new CoordinateData();
         if (lastKnownCoordinatesOfVehicles.containsKey(currentCoordinateData.getVehicleId())) {
             lastCoordinateData = lastKnownCoordinatesOfVehicles.get(currentCoordinateData.getVehicleId());
             double ac = Math.abs(currentCoordinateData.getLongitude() - lastCoordinateData.getLongitude());
             double cb = Math.abs(currentCoordinateData.getLatitude() - lastCoordinateData.getLatitude());
             lastKnownCoordinatesOfVehicles.put(currentCoordinateData.getVehicleId(), currentCoordinateData);
-            return new ImmutablePair<>(currentCoordinateData.getVehicleId(), Math.hypot(ac, cb));
+            return new DistanceData(currentCoordinateData.getVehicleId(), Math.hypot(ac, cb));
         } else {
             lastKnownCoordinatesOfVehicles.put(currentCoordinateData.getVehicleId(),currentCoordinateData);
             return null;
@@ -81,7 +89,6 @@ public class DistanceCalculator {
 
     }
 
-    // TODO: 18/11/2022 need to choose another data structure, because of map require keys to be unique 
     private SendStageInput measureDistance() {
 
         ConsumerRecords<Integer, String> records = coordinateDataConsumer.poll(pollingDuration);
@@ -91,10 +98,13 @@ public class DistanceCalculator {
                 .peek(coordinate -> LOGGER.info("processing coordinate data: " + coordinate))
                 .map(coordinateJson -> mapJsonToCoordinateDataObject(coordinateJson)).filter(Objects::nonNull).collect(Collectors.toList());
 
+
         var distances = coordinateDataList.stream()
                 .map(coordinateData -> calculateDistance(coordinateData))
                 .filter(Objects::nonNull)
-                .collect(toMap(k -> k.left, v -> v.right));
+                .collect(Collectors.toList());
+
+
         var offsets = new HashMap<TopicPartition, OffsetAndMetadata>();
         records.partitions().forEach(partition -> {
             var partitionedRecords = records.records(partition);
@@ -104,14 +114,7 @@ public class DistanceCalculator {
         return new SendStageInput(distances, offsets);
     }
 
-    private void send(Integer key, Double value) {
-        var record = new ProducerRecord<>(resultTopicName, key, value);
-        try {
-            distanceMeasuresProducer.send(record).get();
-        } catch (Exception e) {
-            throw new KafkaOperationException("failed to send a record", e);
-        }
-    }
+
 
     private void inTransaction(Runnable logic, Map<TopicPartition, OffsetAndMetadata> offsets) {
         distanceMeasuresProducer.beginTransaction();
@@ -125,10 +128,9 @@ public class DistanceCalculator {
         distanceMeasuresProducer.commitTransaction();
     }
 
-    private record SendStageInput(Map<Integer, Double> distances, Map<TopicPartition, OffsetAndMetadata> offsets) {
+    private record SendStageInput(List<DistanceData> distances, Map<TopicPartition, OffsetAndMetadata> offsets) {
         public boolean isEmpty() {
             return distances.isEmpty();
         }
     }
-
 }

@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -50,11 +51,24 @@ public class DistanceMeasuresConsumer {
         worker.stop();
     }
 
-    public Map<Integer, Double> getData() {
+
+
+    public List<DistanceData> getData() {
         var list = new ArrayList<Pair<Integer, Double>>();
         recordBuffer.drainTo(list);
         var map = new HashMap<Integer, Double>();
-        list.forEach(pair -> map.put(pair.getKey(), pair.getValue()));
-        return map;
+      List<DistanceData> distanceData=new ArrayList<>();
+        list.forEach(pair -> distanceData.add(new DistanceData(pair.getKey(),pair.getValue())));
+//        list.forEach(pair ->  map.put(pair.getKey(), pair.getValue()));
+        return distanceData;
     }
+
+//    public Map<Integer, Double> getData() {
+//        var list = new ArrayList<Pair<Integer, Double>>();
+//        recordBuffer.drainTo(list);
+//        var map = new HashMap<Integer, Double>();
+//        list.forEach(pair -> map.put(pair.getKey(), pair.getValue()));
+//        return map;
+//    }
+
 }
