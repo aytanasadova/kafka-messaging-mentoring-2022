@@ -1,5 +1,7 @@
 package kafka.example;
 
+import kafka.example.exception.ThreadCommunicationException;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 
@@ -7,14 +9,14 @@ import static org.apache.commons.lang3.Validate.notNull;
 
 public class Worker {
 
-    private ExecutorService executor;
+    private final ExecutorService executor;
+    private CountDownLatch stopPageLatch;
 
-    private CountDownLatch stoppageLatch;
     private volatile boolean stopped;
 
     public Worker(ExecutorService executor) {
-        this.executor = notNull(executor, "executor is required");
-        stopped = true;
+        this.executor = executor;
+        stopped=true;
     }
 
     public void start(Runnable iterationLogic) {
@@ -24,30 +26,27 @@ public class Worker {
             throw new IllegalStateException("the worker is already started");
         }
 
-        stoppageLatch = new CountDownLatch(1);
+        stopPageLatch = new CountDownLatch(1);
         stopped = false;
         executor.submit(() -> run(iterationLogic));
     }
-
     private void run(Runnable iterationLogic) {
         while (!stopped) {
             iterationLogic.run();
         }
 
-        stoppageLatch.countDown();
+        stopPageLatch.countDown();
     }
 
     public void stop() {
         if (stopped) {
             return;
         }
-
         stopped = true;
         try {
-            stoppageLatch.await();
+            stopPageLatch.await();
         } catch (InterruptedException e) {
             throw new ThreadCommunicationException("failed to wait for a worker to stop", e);
         }
     }
-
 }

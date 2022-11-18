@@ -1,5 +1,6 @@
 package kafka.example;
 
+import kafka.example.exception.KafkaOperationException;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -30,18 +31,18 @@ public class MessagingComponentFactory {//implements DisposableBean {
         this.kafkaBootStrapServerUrl = notBlank(kafkaBootStrapServerUrl, "kafka bootstrap server URL is required");
     }
 
-    public VehicleTracker createCounter(String inputTopicName, String outputTopicName, Duration pollingDuration) {
+    public DistanceCalculator createDistanceCalculator(String inputTopicName, String outputTopicName, Duration pollingDuration) {
         var consumerProperties = new Properties();
         consumerProperties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaBootStrapServerUrl);
-        consumerProperties.put(ConsumerConfig.GROUP_ID_CONFIG, "word_counter");
+        consumerProperties.put(ConsumerConfig.GROUP_ID_CONFIG, "calculator-id");
         consumerProperties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
         consumerProperties.put(ConsumerConfig.ISOLATION_LEVEL_CONFIG, "read_committed");
         consumerProperties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
-        var sentenceConsumer = new KafkaConsumer<>(
-            consumerProperties, Serdes.String().deserializer(), Serdes.String().deserializer());
-        sentenceConsumer.subscribe(Collections.singleton(inputTopicName));
-        consumers.add(sentenceConsumer);
+        var coordinateDataConsumer = new KafkaConsumer<>(
+            consumerProperties, Serdes.Integer().deserializer(), Serdes.String().deserializer());
+        coordinateDataConsumer.subscribe(Collections.singleton(inputTopicName));
+        consumers.add(coordinateDataConsumer);
 
         var producerProperties = new Properties();
         producerProperties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaBootStrapServerUrl);
@@ -50,41 +51,35 @@ public class MessagingComponentFactory {//implements DisposableBean {
         producerProperties.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG, "test_id");
 
         var resultsProducer = new KafkaProducer<>(
-            producerProperties,Serdes.Integer().serializer(), Serdes.String().serializer());
-
+            producerProperties, Serdes.Integer().serializer(), Serdes.Double().serializer());
         resultsProducer.initTransactions();
-
         producers.add(resultsProducer);
 
-        return new VehicleTracker(outputTopicName, resultsProducer, sentenceConsumer, pollingDuration);
+        return new DistanceCalculator(outputTopicName, resultsProducer, coordinateDataConsumer, pollingDuration);
     }
 
-    public VehicleDataProducer createProducer(String topicName) {
+    public CoordinateDataProducer createProducer(String topicName) {
         var properties = new Properties();
         properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaBootStrapServerUrl);
-//        properties.put(ProducerConfig.ACKS_CONFIG,1);
 
-
-        var kafkaProducer = new KafkaProducer<>(properties, Serdes.String().serializer(), Serdes.String().serializer());
+        var kafkaProducer = new KafkaProducer<>(properties, Serdes.Integer().serializer(), Serdes.String().serializer());
         producers.add(kafkaProducer);
 
-        return new VehicleDataProducer(topicName, kafkaProducer);
+        return new CoordinateDataProducer(topicName, kafkaProducer);
     }
 
-    public VehicleCoordinateConsumer createConsumer(String topicName, Worker worker, Duration pollingDuration) {
+    public DistanceMeasuresConsumer createConsumer(String topicName, Worker worker, Duration pollingDuration) {
         var properties = new Properties();
         properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaBootStrapServerUrl);
         properties.put(ConsumerConfig.GROUP_ID_CONFIG, "test-data-provider");
         properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
-
-
         var kafkaConsumer =
-            new KafkaConsumer<>(properties,Serdes.Integer().deserializer(), Serdes.String().deserializer() );
+            new KafkaConsumer<>(properties, Serdes.Integer().deserializer(), Serdes.Double().deserializer());
         kafkaConsumer.subscribe(Collections.singleton(topicName));
         consumers.add(kafkaConsumer);
 
-        return new VehicleCoordinateConsumer(worker, kafkaConsumer, pollingDuration);
+        return new DistanceMeasuresConsumer(worker, kafkaConsumer, pollingDuration);
     }
 
     public void createTopics(String... names) {
